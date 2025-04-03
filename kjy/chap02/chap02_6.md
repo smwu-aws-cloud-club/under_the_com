@@ -12,3 +12,48 @@
 * 비동기 처리는 작업을 동시에 실행할 수 있기 때문에 시스템 리소스를 최대한 활용할 수 있음, 시스템 응답 속도가 더 빨라짐
     * 그러나 동기 프로그래밍보다 이해하기 쉽지 않음
     * 시스템 유지 보수 측면에서 동기 프로그래밍보다 좋지 않음 
+
+### 추가로 찾아본 콜백 예시 
+```javascript
+// 1. 데이터를 가져오는 함수 (비동기 작업을 시뮬레이션)
+function fetchUserData(userId, callback) {
+  console.log("사용자 데이터를 가져오는 중...");
+
+  // 2초 뒤에 데이터를 가져왔다고 가정
+  setTimeout(() => {
+    const fakeUserData = {
+      id: userId,
+      name: "홍길동",
+      age: 30,
+    };
+
+    console.log("데이터를 성공적으로 가져왔습니다.");
+    // 데이터를 처리하기 위해 콜백 함수 실행
+    callback(fakeUserData);
+  }, 2000);
+}
+
+// 2. 데이터를 처리하는 함수 (콜백 함수)
+function processUserData(userData) {
+  console.log("사용자 데이터를 처리 중...");
+  console.log(`ID: ${userData.id}`);
+  console.log(`이름: ${userData.name}`);
+  console.log(`나이: ${userData.age}`);
+}
+
+// 3. fetchUserData에 processUserData를 콜백으로 전달
+fetchUserData(1, processUserData);
+```
+1. fetchUserData(1, processUserData)가 호출되면, fetchUserData 함수가 실행됩니다.
+2. setTimeout으로 인해 2초 동안 대기한 뒤, 가짜 사용자 데이터를 생성합니다.
+3. 2초 후, callback(fakeUserData)가 실행되며, processUserData 함수가 호출됩니다.
+4. 최종적으로 사용자 데이터가 출력됩니다.
+
+```
+사용자 데이터를 가져오는 중...
+데이터를 성공적으로 가져왔습니다.
+사용자 데이터를 처리 중...
+ID: 1
+이름: 홍길동
+나이: 30
+```
