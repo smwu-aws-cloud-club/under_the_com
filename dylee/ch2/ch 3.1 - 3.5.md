@@ -74,7 +74,7 @@ load r1 @1
     - 모든 프로세스의 코드 영역이 0x4000000에서 시작 → 서로 다른 프로세스 두 개가 메모리를 할당하기 위해 malloc 호출 → 동일한 시작 주소(0x7f64cb8)반환할 가능성이 높음 → 이 주소는 가상 메모리 주소(동일한 주소가 반환되어도 문제 x) → 메모리 조작 전 실제 물리 메모리 주소로 변경
 - 프로세스들의 실제 물리 메모리에 할당된 형태 → chunk로 나뉘어서 물리 메모리에 저장되어 있고, 모든 조각은 물리 메모리 전체에 무작위로 흩어져 있음
     - 따라서 os는 가상 메모리 ↔ 물리 메모리를 page table을 통한 mapping을 함
-              
+        
 ## page - page table
 
 ### page table
@@ -107,8 +107,12 @@ load r1 @1
 ## 스택 프레임
 
 - 함수가 실행될 때 사용되는 여러 가지 정보를 저장한 것
-- process의 stack 영역에 생성 → 높은 주소가 맨 위에 있고, 낮은 주소 방향으로 커짐 → 스택 영역이 차지하는 메모리는 함수 호출 깊이에 따라 증가하고, 함수 호출이 완료될수록 감소    
-
+    - 함수  call 명령어 뒤에 위치한 주소(0x40056a)
+    - 매개변수
+    - 지역변수
+    - 레지스터 초기값
+- process의 stack 영역에 생성 → 높은 주소가 맨 위에 있고, 낮은 주소 방향으로 커짐 → 스택 영역이 차지하는 메모리는 함수 호출 깊이에 따라 증가하고, 함수 호출이 완료될수록 감소
+    
 ### 함수 jump & return
 
 - 제어권: 현재 실행 흐름에 따라 다음에 실행될 명령어의 주소(PC)가 가리키는 코드 구간이 어디인지(함수/block)나타내는 것
@@ -117,12 +121,141 @@ load r1 @1
 
 1. 함수 A 연산 진행
 2. 함수 A가 함수 B call
-3. CPU가 함수 B로 Jump(제어권이 A → B로 이동) + call 명령어 뒤에 위치한 주소(0x40056a)를 함수 A의 stack frame에 넣음
-4. 함수 B 실행 → 함수 B에도 stack frame 추가 → stack 영역이 차지하는 메모리 크기 증가
+3. CPU가 함수 B로 Jump(제어권이 A → B로 이동) + call 명령어 뒤에 위치한 주소(0x40056a) + 매개변수를 함수 A의 stack frame에 넣음
+4. 함수 B 호출 → 함수 A의 stack frame에서 매개변수 가지고 옴 → 함수 B에도 stack frame 추가 → stack 영역이 차지하는 메모리 크기 증가 → 함수 B 실행
 5. B 실행 완료 후 저장해 둔 반환 주소로 PC 복원 → 다시 A로 (제어권이 다시 A로 이동)
 
-## 매개변수 전달 & 반환값
+### 매개변수 전달 & 반환값
 
 - x86-64
     - 매개변수 전달 & 반환값 가져오는 작업 → register로 수행
-    -
+        - 함수 호출 시 매개변수, 반환값을 register에 저장
+    - 하지만? cpu 내부의 register 수는 제한되어 있음 → stack frame을 활용해, 새로 호출된 함수는 이전 함수의 stack frame에서 매개변수를 가져오자
+
+### 지역변수
+
+- 지역변수도 stack frame에 존재
+
+### 레지스터 초기값
+
+- 레지스터 초기값을 stack에 저장해 레지스터 사용 후 초기값으로 복원
+
+## Stack overflow
+
+1. 지역 변수가 너무 크거나
+2. 함수 호출단계가 너무 많다면 발생
+    
+    → 재귀함수는 주의해서 쓰도록 하자..
+    
+
+# 4. 힙 영역
+
+- 메모리 동적 할당 어떻게 구현?
+- 함수 호출 완료 시 stack frame은 무효화 → memory 줄어듬
+    - 지역 변수도 stack frame에 저장되므로, 지역 변수의 수명 주기는 함수 call과 동일함
+
+## 역할
+
+- 프로그래머가 제어할 수 있는 메모리 영역
+    - c → malloc로 할당 free로 반환
+    - java → class로 생성 gc가 해제
+
+## malloc 직접 구현하기
+
+- malloc
+    - 메모리 영역 요청 → heap area에서 가능한 메모리 영역을 찾아 요청자에게 반환
+- free
+    - heap area 메모리 영역 반환
+
+## 메모리 조각
+
+- header
+    - 메모리 조각 크기 정보
+    - free/allocation 정보
+- payload
+    - 할당 가능한 메모리 조각
+    - malloc 실행 → 반환되는 메모리 주소
+- footer
+    - 메모리의 끝을 알려줌
+    - 다음에 위치한 메모리 조각의 header와 인접 → 인접 메모리 조각이 free인지/allocation인지 확인 후 인접한 여유 메모리 조각을 병합
+
+→ footer, payload는 doubly linked list로 구현
+
+### 메모리 할당 전략
+
+1. 최초 적합
+    - 처음부터 탐색 ~ 가장 먼저 발견된 요구사항을 만족하는 항목 반환
+    - 단순하지만 내부 단편화가..
+    - 다음 메모리 할당 시 메모리 조각을 더 많이 탐색해야 함
+2. 다음 적합
+    - 여유 메모리 조각이 마지막으로 발견된 위치에서 시작
+    - 최초적합보다 별로임
+3. 최적 적합
+    - 먼저 사용 가능한 메모리 조각을 모두 찾은 후 → 요구 사항 만족하면서 크기가 가장 작은 조각 반환
+    - 공간은 효율적
+    - 하지만 탐색 속도가 느림
+
+## 메모리 할당하기
+
+- 메모리 할당 → 공간이 남음 → 이 공간을 더 작은 크기의 새 여유 메모리 조각으로 만듬
+
+## 메모리 해제하기
+
+- free(ADDR)
+    - 메모리를 요청할 때 얻은 주소(ADDR)을 함수의 매개변수로 전달 → free 함수가 ADDR-4byte → 해당 메모리 조각의 머리 정보를 얻고 → header free/allocation 정보를 free로 변경
+- footer or header 를 이용해 인접 메모리 조각이 free인지/allocation인지 확인 후 인접한 여유 메모리 조각을 병합
+
+# 5. 메모리를 할당할 때 저수준 계층에서 일어나는 일
+
+## user mode
+
+- 응용 프로그램 계층
+- 특정 주소 공간에는 접근 x
+
+## kernel mode
+
+- cpu가 os의 코드 실행하는 상태
+- cpu가 모든 기계어 실행, 주소 공간 접근 → 제한 없이 hw에 접근 가능
+
+## system call
+
+- kernel mode에서 cpu는 응용 프로그램을 실행할 수 없고, user mode에서는 os의 코드를 실행할 수 없음
+- 응용 프로그램이 os의 서비스(file read&write, network connection..)를 요청하기 위해 system call
+- process의 system call(user mode) → os가 system call 실행(kernel mode) → os가 system call 결과 반환 호출(user mode)
+
+### x86 system call
+
+- INT 같은 기계어로 구현
+- INT 실행 → CPU가 user mode에서 kernel mode로 전환 → os 코드 실행
+
+### 표준 라이브러리
+
+- linux system call ≠ window system call → low level에서 계층 간 차이를 감추는 표준 = 표준 라이브러리
+- 표준 라이브러리를 통해 프로그래머가 작성한 프로그램을 수정 없이 다른 os에서 실행 가능(user mode, kernel mode 둘 다에서 실행 가능)
+
+### 계층
+
+1. 고수준 계층 → 응용 프로그램
+    - 응용 프로그램은 표준 라이브러리만 의사소통 대상
+2. 표준 라이브러리는 system call로 os와 소통
+    - malloc
+3. os는 저수준 하드웨어 관리
+
+## heap 영역의 메모리가 부족할 때
+
+1. heap ↔ stack 사이 유휴 영역(여유 공간) 존재
+    - 함수 호출 단계가 깊어질수록 stack은 깊어짐
+2. heap area의 memory가 부족할수록 위쪽으로 더 많은 메모리 점유 → 여유 메모리 조각이 부족한 문제 해결. 하지만 heap area를 늘리고 싶다면? → brk 변수값을 위로 이동시켜 heap area를 확장하자!
+    
+    - 메모리가 부족해지면 malloc가 os에 메모리를 요청(malloc → 표준 라이브러리)
+    - user mode에서 해결 가능한 경우
+        - malloc는 여유 메모리 조각 탐색 → 적절한 크기의 메모리 조각을 찾아 할당
+    - user mode에서 해결 불가능한 경우
+        - malloc는 brk system call → os에 heap 늘려달라 요청 → kernel 상태로 전환 → brk(kernel mode)변수값이 위로 이동 → heap 확장(가상 메모리) → brk 실행 종료 → 제어권이 malloc로 돌아가며, CPU도 kernel mode에서 uer mode로 변경 → malloc가 여유 메모리 조각 찾아 할당
+
+## 가상 메모리
+
+- 하지만 os가 process에게 할당하는 메모리는 가상 메모리
+- os가 할당한 메모리가 사용되는 순간에 물리 메모리 할당
+    - page fault 발생 여지가 있다
+        - 가상 메모리 ↔ 실제 메모리 매핑이 덜된 경우..
