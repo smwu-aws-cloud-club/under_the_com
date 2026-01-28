@@ -1,4 +1,4 @@
-# Additional Research
+# Additional Research 
 
 ## 프로세스에 우선순위를 할당하고, 우선순위에 따라 스케줄러(scheduler)가 스케줄링을 할 수 있도록
 
