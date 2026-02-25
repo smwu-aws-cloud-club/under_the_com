@@ -2,6 +2,8 @@
 
 > Inferable 팀의 ["WebSocket 대신 Long Polling을 선택한 이유"](https://www.inferable.ai/blog/posts/postgres-nodejs-longpolling.mdx) 아티클을 기반으로, CH6에서 배운 I/O 다중화 지식을 실제 네트워크 프로토콜 설계 결정에 연결해본다.
 
+참고) 공부하면서 L7의 Polling, Long Polling, Websocket과 L4의 select, poll, epoll을 헷갈려서 이렇게 공부하게 되었습니다. 여러분은 혼동 없으시길 바랍니다.
+
 <br>
 
 ## HTTP 동작 원리

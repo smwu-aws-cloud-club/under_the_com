@@ -1,4 +1,4 @@
-# 9주차 실습: Long Polling과 WebSocket 직접 구현
+# 8주차 실습: Long Polling과 WebSocket 직접 구현
 
 ## 실습 개요
 
@@ -7,12 +7,14 @@ Long Polling과 WebSocket을 Node.js로 직접 구현하고,<br>
 
 이론 내용은 [CH6 Amendment.md](../Amendment.md)를 참고한다.
 
+참고) 공부하면서 L7의 Polling, Long Polling, Websocket과 L4의 select, poll, epoll을 헷갈려서 이렇게 공부하게 되었습니다. 여러분은 혼동 없으시길 바랍니다.
+
 <br>
 
 ## 파일 구성
 
 ```
-week9/
+week8/
 ├── long-polling-server.js   # Long Polling 서버 (Node.js 내장 모듈만 사용)
 ├── websocket-server.js      # WebSocket 서버 (ws 라이브러리 사용)
 ├── index.html               # 브라우저 테스트 UI
