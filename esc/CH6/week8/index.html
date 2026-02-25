@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Long Polling / WebSocket 테스트</title>
+  <style>
+    body { font-family: monospace; padding: 20px; max-width: 800px; }
+    h2 { border-bottom: 2px solid #333; padding-bottom: 6px; }
+    h3 { margin-top: 20px; }
+    .section { border: 1px solid #ddd; padding: 12px; margin-bottom: 16px; border-radius: 4px; }
+    #log {
+      border: 1px solid #ccc; padding: 10px; height: 300px;
+      overflow-y: auto; background: #f9f9f9; font-size: 13px;
+    }
+    button { margin: 4px; padding: 6px 14px; cursor: pointer; }
+    input { padding: 6px; width: 280px; }
+    .ts { color: #888; }
+    .lp  { color: #0066cc; }
+    .ws  { color: #cc6600; }
+    .err { color: #cc0000; }
+  </style>
+</head>
+<body>
+  <h2>Long Polling vs WebSocket 실습 테스트</h2>
+  <p>
+    두 서버를 각각 실행한 후 아래 버튼으로 테스트하세요.<br>
+    Long Polling: <code>node long-polling-server.js</code> (포트 3000)<br>
+    WebSocket: <code>node websocket-server.js</code> (포트 8080)
+  </p>
+
+  <!-- Long Polling 섹션 -->
+  <div class="section">
+    <h3>Long Polling (http://localhost:3000)</h3>
+    <button onclick="startPolling()">폴링 시작</button>
+    <button onclick="stopPolling()">폴링 중지</button>
+    <button onclick="sendEvent()">이벤트 발생 (POST /event)</button>
+    <span id="polling-status" style="margin-left:10px; color:#888">대기 중</span>
+  </div>
+
+  <!-- WebSocket 섹션 -->
+  <div class="section">
+    <h3>WebSocket (ws://localhost:8080)</h3>
+    <button onclick="connectWS()">연결</button>
+    <button onclick="disconnectWS()">연결 종료</button>
+    <br>
+    <input id="msg" type="text" placeholder="보낼 메시지를 입력하세요" />
+    <button onclick="sendWS()">전송</button>
+    <span id="ws-status" style="margin-left:10px; color:#888">미연결</span>
+  </div>
+
+  <!-- 로그 영역 -->
+  <h3>실시간 로그</h3>
+  <button onclick="clearLog()">로그 지우기</button>
+  <div id="log"></div>
+
+  <script>
+    let ws = null;
+    let polling = false;
+
+    // 로그 출력 함수
+    function log(msg, cls = '') {
+      const div = document.getElementById('log');
+      const ts = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+      div.innerHTML += `<span class="ts">[${ts}]</span> <span class="${cls}">${msg}</span><br>`;
+      div.scrollTop = div.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '';
+    }
+
+    // ============================================================
+    // Long Polling
+    // ============================================================
+
+    async function startPolling() {
+      if (polling) { log('[LP] 이미 폴링 중입니다', 'lp'); return; }
+      polling = true;
+      document.getElementById('polling-status').textContent = '폴링 중...';
+      document.getElementById('polling-status').style.color = '#0066cc';
+      log('[LP] 폴링 시작', 'lp');
+      pollLoop();
+    }
+
+    function stopPolling() {
+      polling = false;
+      document.getElementById('polling-status').textContent = '중지됨';
+      document.getElementById('polling-status').style.color = '#888';
+      log('[LP] 폴링 중지', 'lp');
+    }
+
+    async function pollLoop() {
+      while (polling) {
+        try {
+          log('[LP] /poll 요청... (최대 30초 대기)', 'lp');
+          const res = await fetch('http://localhost:3000/poll');
+          const data = await res.json();
+
+          if (data.type === 'timeout') {
+            log('[LP] 타임아웃 → 재연결', 'lp');
+          } else {
+            log(`[LP] 이벤트 수신: "${data.data}"`, 'lp');
+          }
+        } catch (e) {
+          if (!polling) break;
+          log(`[LP] 연결 실패: ${e.message} (서버가 실행 중인지 확인)`, 'err');
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    }
+
+    async function sendEvent() {
+      try {
+        const res = await fetch('http://localhost:3000/event', {
+          method: 'POST',
+          body: `이벤트-${Date.now()}`,
+        });
+        const data = await res.json();
+        log(`[LP] 이벤트 발송 → ${data.notified}개 클라이언트에 전달`, 'lp');
+      } catch (e) {
+        log(`[LP] 이벤트 발송 실패: ${e.message}`, 'err');
+      }
+    }
+
+    // ============================================================
+    // WebSocket
+    // ============================================================
+
+    function connectWS() {
+      if (ws && ws.readyState !== WebSocket.CLOSED) {
+        log('[WS] 이미 연결되어 있습니다', 'ws');
+        return;
+      }
+
+      log('[WS] 연결 시도... ws://localhost:8080', 'ws');
+      ws = new WebSocket('ws://localhost:8080');
+
+      ws.onopen = () => {
+        log('[WS] 연결됨', 'ws');
+        document.getElementById('ws-status').textContent = '연결됨';
+        document.getElementById('ws-status').style.color = '#cc6600';
+      };
+
+      ws.onmessage = (e) => {
+        // JSON 파싱 시도
+        try {
+          const data = JSON.parse(e.data);
+          log(`[WS] 수신: ${JSON.stringify(data)}`, 'ws');
+        } catch {
+          log(`[WS] 수신: ${e.data}`, 'ws');
+        }
+      };
+
+      ws.onerror = (e) => {
+        log('[WS] 에러 발생 (서버가 실행 중인지 확인)', 'err');
+      };
+
+      ws.onclose = (e) => {
+        log(`[WS] 연결 종료 (코드: ${e.code})`, 'ws');
+        document.getElementById('ws-status').textContent = '미연결';
+        document.getElementById('ws-status').style.color = '#888';
+        ws = null;
+      };
+    }
+
+    function disconnectWS() {
+      if (ws) {
+        ws.close();
+      } else {
+        log('[WS] 연결되어 있지 않습니다', 'ws');
+      }
+    }
+
+    function sendWS() {
+      const input = document.getElementById('msg');
+      const msg = input.value.trim();
+      if (!msg) { log('[WS] 메시지를 입력하세요', 'err'); return; }
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(msg);
+        log(`[WS] 전송: "${msg}"`, 'ws');
+        input.value = '';
+      } else {
+        log('[WS] 먼저 연결하세요', 'err');
+      }
+    }
+
+    // Enter 키로 메시지 전송
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('msg').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendWS();
+      });
+    });
+  </script>
+</body>
+</html>
