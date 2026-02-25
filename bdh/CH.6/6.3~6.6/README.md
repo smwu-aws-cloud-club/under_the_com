@@ -398,4 +398,9 @@ SSD는 메모리보다 약 4배 느리다.
 
 이는 분산 시스템 설계에서 네트워크 호출을 최소화해야 하는 이유를 설명한다.
 
+---
+
+## 📝Full Notes
+https://delicate-dish-b60.notion.site/6-3-6-6-312a4c0c427280f3bc59c8aa94ab5478?source=copy_link
+
 함수 호출과 네트워크 호출은 근본적으로 다른 비용 구조를 가진다.
